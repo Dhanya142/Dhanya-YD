@@ -1,0 +1,7 @@
+{
+  "name": "Organic Farming Guide Chatbot",
+  "description": "An AI-powered chatbot to help users learn about organic farming in India, including techniques, government schemes, and success stories. Get friendly and reliable information powered by Gemini.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
