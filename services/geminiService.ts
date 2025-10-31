@@ -60,6 +60,33 @@ export const searchWithAI = async (message: string, systemInstruction: string, h
     }
 };
 
+export const identifyWithImage = async (prompt: string, imageBase64: string, mimeType: string): Promise<GenerateContentResponse> => {
+  const genAI = getAIInstance();
+  const fullPrompt = prompt || "Identify what is in this image and provide advice if it's a plant pest or disease.";
+
+  try {
+    const imagePart = {
+      inlineData: {
+        mimeType: mimeType,
+        data: imageBase64,
+      },
+    };
+    const textPart = { text: fullPrompt };
+
+    const response = await genAI.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: { parts: [imagePart, textPart] },
+      config: {
+        systemInstruction: "You are an expert agriculturalist specializing in identifying plant pests and diseases from images. Provide a clear identification, potential risks, and detailed organic treatment recommendations. Be concise and practical.",
+      },
+    });
+    return response;
+  } catch (error) {
+    console.error("Gemini API image identification error:", error);
+    throw new Error("Failed to get response from AI for image identification");
+  }
+};
+
 
 export const generateImageFromText = async (prompt: string): Promise<string> => {
   const genAI = getAIInstance();

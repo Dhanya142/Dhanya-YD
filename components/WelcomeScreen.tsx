@@ -5,6 +5,7 @@ import { SearchIcon } from './icons/Icons';
 
 interface WelcomeScreenProps {
   onStartChat: (prompt: string, isSearch?: boolean) => void;
+  onSelectOption: (option: MenuOption) => void;
   onShowImageGenerator: () => void;
 }
 
@@ -22,7 +23,7 @@ const MenuOptionCard: React.FC<{ option: MenuOption, onClick: () => void }> = ({
 );
 
 
-export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStartChat, onShowImageGenerator }) => {
+export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStartChat, onSelectOption, onShowImageGenerator }) => {
   const [searchQuery, setSearchQuery] = useState('');
 
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -74,7 +75,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStartChat, onSho
             onClick={
               option.key === 'visualize'
                 ? onShowImageGenerator
-                : () => onStartChat(option.prompt)
+                : () => onSelectOption(option)
             }
           />
         ))}

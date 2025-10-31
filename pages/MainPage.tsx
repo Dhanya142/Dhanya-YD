@@ -5,9 +5,10 @@ import { WelcomeScreen } from '../components/WelcomeScreen';
 import { ChatWindow } from '../components/ChatWindow';
 import { ChatInput } from '../components/ChatInput';
 import { ImageGenerator } from '../components/ImageGenerator';
-import { initChat, searchWithAI } from '../services/geminiService';
+import { ImageIdentifier } from '../components/ImageIdentifier';
+import { initChat, searchWithAI, identifyWithImage } from '../services/geminiService';
 import { SYSTEM_INSTRUCTION, getWeatherFunctionDeclaration } from '../constants';
-import type { Message, Source } from '../types';
+import type { Message, Source, MenuOption } from '../types';
 
 // A mock function for the weather tool
 const getWeatherReport = () => {
@@ -18,15 +19,17 @@ const getWeatherReport = () => {
   return `The current weather is ${temp}°C with ${cond}. It's a great day for farming!`;
 }
 
-type View = 'welcome' | 'chat' | 'image-generator';
+type View = 'welcome' | 'info' | 'chat' | 'image-generator' | 'image-upload';
 
 export const MainPage: React.FC = () => {
   const [view, setView] = useState<View>('welcome');
+  const [selectedOption, setSelectedOption] = useState<MenuOption | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [chatSession, setChatSession] = useState<Chat | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSearchMode, setIsSearchMode] = useState(false);
   const [chatHistoryForSearch, setChatHistoryForSearch] = useState<Content[]>([]);
+  const [showTooltip, setShowTooltip] = useState(false);
 
   const handleBackToHome = () => {
     setView('welcome');
@@ -34,6 +37,8 @@ export const MainPage: React.FC = () => {
     setChatSession(null);
     setIsSearchMode(false);
     setChatHistoryForSearch([]);
+    setSelectedOption(null);
+    setShowTooltip(false);
   };
 
   const processApiResponse = (response: GenerateContentResponse): { text: string; sources: Source[] } => {
@@ -180,8 +185,99 @@ export const MainPage: React.FC = () => {
     }
   };
 
+  const handleImageIdentification = async (prompt: string, imageBase64: string, mimeType: string) => {
+    const userPrompt = prompt || "Please identify the item in this image and provide relevant advice.";
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      text: `[Image Uploaded] ${userPrompt}`,
+      sender: 'user',
+    };
+
+    setView('chat');
+    setMessages([userMessage]);
+    setIsLoading(true);
+
+    try {
+      const response = await identifyWithImage(userPrompt, imageBase64, mimeType);
+      const { text, sources } = processApiResponse(response);
+      const aiMessage: Message = {
+        id: Date.now().toString() + '-ai',
+        text,
+        sender: 'ai',
+        sources,
+      };
+      setMessages(prev => [...prev, aiMessage]);
+    } catch (error) {
+      console.error(error);
+      const errorMessage: Message = {
+        id: Date.now().toString() + '-error',
+        text: "Sorry, I couldn't identify the image. Please try again.",
+        sender: 'ai',
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSelectOption = (option: MenuOption) => {
+    setSelectedOption(option);
+    setShowTooltip(false);
+    if (option.key === 'visualize') {
+        setView('image-generator');
+    } else {
+        setView('info');
+    }
+  };
+  
+  const handleInfoScreenAction = () => {
+    if (!selectedOption) return;
+    if (selectedOption.key === 'image-id') {
+      setView('image-upload');
+    } else {
+      handleStartChat(selectedOption.prompt);
+    }
+  };
+
   const renderContent = () => {
     switch (view) {
+      case 'info':
+        if (!selectedOption) return null;
+        return (
+            <div className="flex flex-col items-center justify-center h-full text-center animate-fade-in">
+                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-6 text-4xl">
+                    {selectedOption.icon}
+                </div>
+                <h2 className="text-3xl font-bold text-gray-800 mb-4">{selectedOption.title}</h2>
+                <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-6">
+                    {selectedOption.info}
+                </p>
+
+                {selectedOption.tooltip && (
+                    <div className="relative inline-block mb-8">
+                        <button
+                            onClick={() => setShowTooltip(prev => !prev)}
+                            className="text-sm text-green-700 hover:text-green-900 transition-colors underline decoration-dotted underline-offset-2"
+                        >
+                            Learn More
+                        </button>
+                        {showTooltip && (
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-gray-800 text-white text-xs rounded-lg shadow-lg z-20 transition-opacity duration-300 opacity-100">
+                                <p>{selectedOption.tooltip}</p>
+                                <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-x-8 border-x-transparent border-t-8 border-t-gray-800"></div>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                <button
+                    onClick={handleInfoScreenAction}
+                    className="bg-green-600 text-white font-bold text-lg px-10 py-3 rounded-full shadow-lg hover:bg-green-700 transform hover:scale-105 transition-all duration-300 ease-in-out"
+                >
+                    {selectedOption.key === 'image-id' ? 'Start Identification' : 'Start Conversation'}
+                </button>
+            </div>
+        );
       case 'chat':
         return (
           <div className="flex flex-col h-full">
@@ -193,9 +289,11 @@ export const MainPage: React.FC = () => {
         );
       case 'image-generator':
         return <ImageGenerator />;
+      case 'image-upload':
+        return <ImageIdentifier onSubmit={handleImageIdentification} />;
       case 'welcome':
       default:
-        return <WelcomeScreen onStartChat={handleStartChat} onShowImageGenerator={() => setView('image-generator')} />;
+        return <WelcomeScreen onStartChat={handleStartChat} onSelectOption={handleSelectOption} onShowImageGenerator={() => setView('image-generator')} />;
     }
   };
   
